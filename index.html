@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Cara o Cruz - Manu vs Ale</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #0b0b0b;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Contenedor de los jugadores */
+        .players-container {
+            display: flex;
+            justify-content: space-between;
+            width: 80%;
+            max-width: 400px;
+            margin-bottom: 50px;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .player {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        select {
+            background-color: #222;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            outline: none;
+        }
+
+        /* Contenedor de la moneda con perspectiva 3D */
+        .coin-container {
+            perspective: 1000px;
+            cursor: grab;
+            margin-bottom: 40px;
+        }
+        
+        .coin-container:active {
+            cursor: grabbing;
+        }
+
+        .coin {
+            width: 200px;
+            height: 200px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .face {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            backface-visibility: hidden;
+            border-radius: 50%;
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+        }
+
+        .front {
+            background-image: url('cara.png');
+            /* Asegura que no se invierta visualmente si usas texturas raras */
+            transform: rotateX(0deg); 
+        }
+
+        .back {
+            background-image: url('cruz.png');
+            /* Rotamos la imagen trasera para que al girar quede al derecho */
+            transform: rotateX(180deg) rotateZ(180deg); 
+        }
+
+        /* Texto de resultado */
+        #result-text {
+            font-size: 1.5rem;
+            min-height: 2rem;
+            text-align: center;
+            padding: 0 20px;
+            color: #d4af37; /* Tono dorado tenue para resaltar */
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        
+        .show-result {
+            opacity: 1 !important;
+        }
+
+        .instruction {
+            margin-top: 30px;
+            font-size: 0.9rem;
+            color: #777;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="players-container">
+        <div class="player">
+            <span>Manu</span>
+            <select id="manu-select">
+                <option value="cara">Cara</option>
+                <option value="cruz">Cruz</option>
+            </select>
+        </div>
+        <div class="player">
+            <span>Ale</span>
+            <select id="ale-select">
+                <option value="cruz">Cruz</option>
+                <option value="cara">Cara</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="coin-container" id="coin-container">
+        <div class="coin" id="coin">
+            <div class="face front"></div>
+            <div class="face back"></div>
+        </div>
+    </div>
+
+    <div id="result-text"></div>
+    <div class="instruction">Desliza la moneda hacia arriba para girar</div>
+
+    <script>
+        const manuSelect = document.getElementById('manu-select');
+        const aleSelect = document.getElementById('ale-select');
+        const coin = document.getElementById('coin');
+        const coinContainer = document.getElementById('coin-container');
+        const resultText = document.getElementById('result-text');
+
+        let isFlipping = false;
+        let currentRotation = 0;
+
+        // Sincronizar los menús desplegables
+        manuSelect.addEventListener('change', () => {
+            aleSelect.value = manuSelect.value === 'cara' ? 'cruz' : 'cara';
+        });
+
+        aleSelect.addEventListener('change', () => {
+            manuSelect.value = aleSelect.value === 'cara' ? 'cruz' : 'cara';
+        });
+
+        // Variables para detectar el swipe (deslizamiento)
+        let startY = 0;
+        let endY = 0;
+
+        // Eventos táctiles (Móvil)
+        coinContainer.addEventListener('touchstart', (e) => {
+            startY = e.touches[0].clientY;
+        });
+
+        coinContainer.addEventListener('touchend', (e) => {
+            endY = e.changedTouches[0].clientY;
+            handleSwipe();
+        });
+
+        // Eventos de ratón (PC)
+        coinContainer.addEventListener('mousedown', (e) => {
+            startY = e.clientY;
+        });
+
+        coinContainer.addEventListener('mouseup', (e) => {
+            endY = e.clientY;
+            handleSwipe();
+        });
+
+        function handleSwipe() {
+            if (isFlipping) return;
+
+            // Detectar deslizamiento hacia arriba (startY debe ser mayor que endY por al menos 30px)
+            if (startY - endY > 30) {
+                flipCoin();
+            }
+        }
+
+        function flipCoin() {
+            isFlipping = true;
+            resultText.classList.remove('show-result');
+            
+            // Decidir resultado (0 = Cara, 1 = Cruz)
+            const isCara = Math.random() < 0.5;
+            const extraSpins = 5; // Vueltas extra para el efecto
+            const baseRotation = extraSpins * 360;
+            
+            // Si es cara termina en múltiplo de 360, si es cruz termina en +180
+            const finalRotation = currentRotation + baseRotation + (isCara ? 0 : 180);
+            
+            coin.style.transform = `rotateX(${finalRotation}deg)`;
+            currentRotation = finalRotation;
+
+            // Esperar a que termine la animación (3000ms según el CSS)
+            setTimeout(() => {
+                const finalResult = isCara ? 'cara' : 'cruz';
+                let winner = '';
+                let loser = '';
+
+                if (manuSelect.value === finalResult) {
+                    winner = 'Manu';
+                    loser = 'Ale';
+                } else {
+                    winner = 'Ale';
+                    loser = 'Manu';
+                }
+
+                resultText.innerHTML = `<strong>${winner}</strong> ganaste, pide lo que quieras a <strong>${loser}</strong>`;
+                resultText.classList.add('show-result');
+                isFlipping = false;
+                
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
