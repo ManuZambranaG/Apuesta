@@ -20,10 +20,12 @@
             align-items: center;
             justify-content: center;
             height: 100vh;
+            height: 100dvh; /* Altura dinámica para celulares */
             overflow: hidden;
+            user-select: none; 
+            -webkit-user-select: none;
         }
 
-        /* Contenedor de los jugadores */
         .players-container {
             display: flex;
             justify-content: space-between;
@@ -51,13 +53,16 @@
             font-size: 1rem;
             cursor: pointer;
             outline: none;
+            -webkit-appearance: none; /* Estilo más limpio en iOS */
+            appearance: none;
+            text-align: center;
         }
 
-        /* Contenedor de la moneda con perspectiva 3D */
         .coin-container {
             perspective: 1000px;
             cursor: grab;
             margin-bottom: 40px;
+            touch-action: none; 
         }
         
         .coin-container:active {
@@ -69,6 +74,7 @@
             height: 200px;
             position: relative;
             transform-style: preserve-3d;
+            -webkit-transform-style: preserve-3d; /* Soporte iOS */
             transition: transform 3s cubic-bezier(0.2, 0.8, 0.2, 1);
         }
 
@@ -77,6 +83,7 @@
             height: 100%;
             position: absolute;
             backface-visibility: hidden;
+            -webkit-backface-visibility: hidden; /* Soporte iOS */
             border-radius: 50%;
             background-size: cover;
             background-position: center;
@@ -85,23 +92,22 @@
 
         .front {
             background-image: url('cara.png');
-            /* Asegura que no se invierta visualmente si usas texturas raras */
             transform: rotateX(0deg); 
+            -webkit-transform: rotateX(0deg);
         }
 
         .back {
             background-image: url('cruz.png');
-            /* Rotamos la imagen trasera para que al girar quede al derecho */
             transform: rotateX(180deg) rotateZ(180deg); 
+            -webkit-transform: rotateX(180deg) rotateZ(180deg);
         }
 
-        /* Texto de resultado */
         #result-text {
             font-size: 1.5rem;
             min-height: 2rem;
             text-align: center;
             padding: 0 20px;
-            color: #d4af37; /* Tono dorado tenue para resaltar */
+            color: #d4af37;
             opacity: 0;
             transition: opacity 0.5s ease;
         }
@@ -145,7 +151,7 @@
     </div>
 
     <div id="result-text"></div>
-    <div class="instruction">Desliza la moneda hacia arriba para girar</div>
+    <div class="instruction">Desliza hacia arriba (o haz clic) para girar</div>
 
     <script>
         const manuSelect = document.getElementById('manu-select');
@@ -156,8 +162,11 @@
 
         let isFlipping = false;
         let currentRotation = 0;
+        let isDragging = false;
+        let startY = 0;
+        let endY = 0;
 
-        // Sincronizar los menús desplegables
+        // Sincronizar selectores
         manuSelect.addEventListener('change', () => {
             aleSelect.value = manuSelect.value === 'cara' ? 'cruz' : 'cara';
         });
@@ -166,35 +175,26 @@
             manuSelect.value = aleSelect.value === 'cara' ? 'cruz' : 'cara';
         });
 
-        // Variables para detectar el swipe (deslizamiento)
-        let startY = 0;
-        let endY = 0;
-
-        // Eventos táctiles (Móvil)
-        coinContainer.addEventListener('touchstart', (e) => {
-            startY = e.touches[0].clientY;
-        });
-
-        coinContainer.addEventListener('touchend', (e) => {
-            endY = e.changedTouches[0].clientY;
-            handleSwipe();
-        });
-
-        // Eventos de ratón (PC)
-        coinContainer.addEventListener('mousedown', (e) => {
+        // --- Uso de Pointer Events (Funciona perfecto en PC, Android e iOS) ---
+        coinContainer.addEventListener('pointerdown', (e) => {
             startY = e.clientY;
+            isDragging = true;
         });
 
-        coinContainer.addEventListener('mouseup', (e) => {
+        window.addEventListener('pointerup', (e) => {
+            if (!isDragging) return;
             endY = e.clientY;
+            isDragging = false;
             handleSwipe();
         });
 
         function handleSwipe() {
             if (isFlipping) return;
 
-            // Detectar deslizamiento hacia arriba (startY debe ser mayor que endY por al menos 30px)
-            if (startY - endY > 30) {
+            const distance = startY - endY;
+
+            // Si se desliza hacia arriba (>30px) o es un clic directo (<5px de movimiento)
+            if (distance > 30 || Math.abs(distance) < 5) {
                 flipCoin();
             }
         }
@@ -203,18 +203,18 @@
             isFlipping = true;
             resultText.classList.remove('show-result');
             
-            // Decidir resultado (0 = Cara, 1 = Cruz)
             const isCara = Math.random() < 0.5;
-            const extraSpins = 5; // Vueltas extra para el efecto
-            const baseRotation = extraSpins * 360;
             
-            // Si es cara termina en múltiplo de 360, si es cruz termina en +180
-            const finalRotation = currentRotation + baseRotation + (isCara ? 0 : 180);
+            // Lógica corregida: limpiamos el residuo para siempre calcular desde un múltiplo exacto de 360
+            const baseRotation = currentRotation - (currentRotation % 360);
+            const extraSpins = 1800; // 5 vueltas completas
+            
+            // Si es cara termina en 0 (base + vueltas), si es cruz le sumamos 180
+            const finalRotation = baseRotation + extraSpins + (isCara ? 0 : 180);
             
             coin.style.transform = `rotateX(${finalRotation}deg)`;
             currentRotation = finalRotation;
 
-            // Esperar a que termine la animación (3000ms según el CSS)
             setTimeout(() => {
                 const finalResult = isCara ? 'cara' : 'cruz';
                 let winner = '';
@@ -232,7 +232,7 @@
                 resultText.classList.add('show-result');
                 isFlipping = false;
                 
-            }, 3000);
+            }, 3000); // 3 segundos, igual que la transición CSS
         }
     </script>
 </body>
