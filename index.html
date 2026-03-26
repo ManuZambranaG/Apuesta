@@ -20,7 +20,7 @@
             align-items: center;
             justify-content: center;
             height: 100vh;
-            height: 100dvh; /* Altura dinámica para celulares */
+            height: 100dvh;
             overflow: hidden;
             user-select: none; 
             -webkit-user-select: none;
@@ -53,7 +53,7 @@
             font-size: 1rem;
             cursor: pointer;
             outline: none;
-            -webkit-appearance: none; /* Estilo más limpio en iOS */
+            -webkit-appearance: none;
             appearance: none;
             text-align: center;
         }
@@ -74,7 +74,7 @@
             height: 200px;
             position: relative;
             transform-style: preserve-3d;
-            -webkit-transform-style: preserve-3d; /* Soporte iOS */
+            -webkit-transform-style: preserve-3d;
             transition: transform 3s cubic-bezier(0.2, 0.8, 0.2, 1);
         }
 
@@ -83,7 +83,7 @@
             height: 100%;
             position: absolute;
             backface-visibility: hidden;
-            -webkit-backface-visibility: hidden; /* Soporte iOS */
+            -webkit-backface-visibility: hidden;
             border-radius: 50%;
             background-size: cover;
             background-position: center;
@@ -165,17 +165,37 @@
         let isDragging = false;
         let startY = 0;
         let endY = 0;
+        let lastResult = null; // Guardamos el último resultado de la moneda
 
-        // Sincronizar selectores
+        // Función para actualizar el texto si alguien cambia de opción
+        function updateResultText() {
+            if (!lastResult || isFlipping) return;
+
+            let winner = '';
+            let loser = '';
+
+            if (manuSelect.value === lastResult) {
+                winner = 'Manu';
+                loser = 'Ale';
+            } else {
+                winner = 'Ale';
+                loser = 'Manu';
+            }
+
+            resultText.innerHTML = `<strong>${winner}</strong> ganaste, pide lo que quieras a <strong>${loser}</strong>`;
+        }
+
+        // Sincronizar selectores y actualizar el texto dinámicamente
         manuSelect.addEventListener('change', () => {
             aleSelect.value = manuSelect.value === 'cara' ? 'cruz' : 'cara';
+            updateResultText();
         });
 
         aleSelect.addEventListener('change', () => {
             manuSelect.value = aleSelect.value === 'cara' ? 'cruz' : 'cara';
+            updateResultText();
         });
 
-        // --- Uso de Pointer Events (Funciona perfecto en PC, Android e iOS) ---
         coinContainer.addEventListener('pointerdown', (e) => {
             startY = e.clientY;
             isDragging = true;
@@ -193,7 +213,6 @@
 
             const distance = startY - endY;
 
-            // Si se desliza hacia arriba (>30px) o es un clic directo (<5px de movimiento)
             if (distance > 30 || Math.abs(distance) < 5) {
                 flipCoin();
             }
@@ -205,34 +224,21 @@
             
             const isCara = Math.random() < 0.5;
             
-            // Lógica corregida: limpiamos el residuo para siempre calcular desde un múltiplo exacto de 360
             const baseRotation = currentRotation - (currentRotation % 360);
-            const extraSpins = 1800; // 5 vueltas completas
+            const extraSpins = 1800; 
             
-            // Si es cara termina en 0 (base + vueltas), si es cruz le sumamos 180
             const finalRotation = baseRotation + extraSpins + (isCara ? 0 : 180);
             
             coin.style.transform = `rotateX(${finalRotation}deg)`;
             currentRotation = finalRotation;
 
             setTimeout(() => {
-                const finalResult = isCara ? 'cara' : 'cruz';
-                let winner = '';
-                let loser = '';
-
-                if (manuSelect.value === finalResult) {
-                    winner = 'Manu';
-                    loser = 'Ale';
-                } else {
-                    winner = 'Ale';
-                    loser = 'Manu';
-                }
-
-                resultText.innerHTML = `<strong>${winner}</strong> ganaste, pide lo que quieras a <strong>${loser}</strong>`;
-                resultText.classList.add('show-result');
+                lastResult = isCara ? 'cara' : 'cruz'; // Guardamos la cara ganadora
+                updateResultText(); // Generamos el texto
+                resultText.classList.add('show-result'); // Mostramos el texto
                 isFlipping = false;
                 
-            }, 3000); // 3 segundos, igual que la transición CSS
+            }, 3000); 
         }
     </script>
 </body>
