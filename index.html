@@ -107,7 +107,7 @@
             min-height: 2rem;
             text-align: center;
             padding: 0 20px;
-            color: #d4af37;
+            color: #d4af37; /* Dorado */
             opacity: 0;
             transition: opacity 0.5s ease;
         }
@@ -151,9 +151,26 @@
     </div>
 
     <div id="result-text"></div>
-    <div class="instruction">Desliza hacia arriba (o haz clic) para girar</div>
+    <div class="instruction">Desliza hacia arriba para lanzar la moneda</div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+        import { getDatabase, ref, update, onValue } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCIh-yl2ctATe77NobiY5HSajZcCxKRvVc",
+            authDomain: "moneda-f6738.firebaseapp.com",
+            databaseURL: "https://moneda-f6738-default-rtdb.firebaseio.com",
+            projectId: "moneda-f6738",
+            storageBucket: "moneda-f6738.firebasestorage.app",
+            messagingSenderId: "1094220938340",
+            appId: "1:1094220938340:web:28ed54a0ef3740aac7b371"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const gameRef = ref(db, 'partida');
+
         const manuSelect = document.getElementById('manu-select');
         const aleSelect = document.getElementById('ale-select');
         const coin = document.getElementById('coin');
@@ -165,35 +182,42 @@
         let isDragging = false;
         let startY = 0;
         let endY = 0;
-        let lastResult = null; // Guardamos el último resultado de la moneda
+        
+        let lastFlipId = null; 
+        let currentResult = null;
 
-        // Función para actualizar el texto si alguien cambia de opción
-        function updateResultText() {
-            if (!lastResult || isFlipping) return;
+        onValue(gameRef, (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
 
-            let winner = '';
-            let loser = '';
-
-            if (manuSelect.value === lastResult) {
-                winner = 'Manu';
-                loser = 'Ale';
-            } else {
-                winner = 'Ale';
-                loser = 'Manu';
+            if (!isFlipping) {
+                if (data.manuEleccion && manuSelect.value !== data.manuEleccion) {
+                    manuSelect.value = data.manuEleccion;
+                }
+                if (data.aleEleccion && aleSelect.value !== data.aleEleccion) {
+                    aleSelect.value = data.aleEleccion;
+                }
+                
+                if (data.ultimoResultado) {
+                    currentResult = data.ultimoResultado;
+                    actualizarTexto(currentResult);
+                }
             }
 
-            resultText.innerHTML = `<strong>${winner}</strong> ganaste, pide lo que quieras a <strong>${loser}</strong>`;
-        }
+            if (data.idTiro && data.idTiro !== lastFlipId) {
+                lastFlipId = data.idTiro;
+                ejecutarGiro(data.ultimoResultado);
+            }
+        });
 
-        // Sincronizar selectores y actualizar el texto dinámicamente
         manuSelect.addEventListener('change', () => {
-            aleSelect.value = manuSelect.value === 'cara' ? 'cruz' : 'cara';
-            updateResultText();
+            const opuesto = manuSelect.value === 'cara' ? 'cruz' : 'cara';
+            update(gameRef, { manuEleccion: manuSelect.value, aleEleccion: opuesto });
         });
 
         aleSelect.addEventListener('change', () => {
-            manuSelect.value = aleSelect.value === 'cara' ? 'cruz' : 'cara';
-            updateResultText();
+            const opuesto = aleSelect.value === 'cara' ? 'cruz' : 'cara';
+            update(gameRef, { aleEleccion: aleSelect.value, manuEleccion: opuesto });
         });
 
         coinContainer.addEventListener('pointerdown', (e) => {
@@ -205,41 +229,71 @@
             if (!isDragging) return;
             endY = e.clientY;
             isDragging = false;
-            handleSwipe();
+            
+            if (isFlipping) return;
+            
+            const distance = startY - endY;
+            if (distance > 30 || Math.abs(distance) < 5) {
+                iniciarTiroFirebase();
+            }
         });
 
-        function handleSwipe() {
-            if (isFlipping) return;
+        function iniciarTiroFirebase() {
+            const esCara = Math.random() < 0.5;
+            const resultado = esCara ? 'cara' : 'cruz';
+            const nuevoId = Date.now();
 
-            const distance = startY - endY;
-
-            if (distance > 30 || Math.abs(distance) < 5) {
-                flipCoin();
-            }
+            update(gameRef, {
+                idTiro: nuevoId,
+                ultimoResultado: resultado
+            });
         }
 
-        function flipCoin() {
+        function ejecutarGiro(resultado) {
             isFlipping = true;
             resultText.classList.remove('show-result');
             
-            const isCara = Math.random() < 0.5;
-            
+            const esCara = resultado === 'cara';
             const baseRotation = currentRotation - (currentRotation % 360);
             const extraSpins = 1800; 
-            
-            const finalRotation = baseRotation + extraSpins + (isCara ? 0 : 180);
+            const finalRotation = baseRotation + extraSpins + (esCara ? 0 : 180);
             
             coin.style.transform = `rotateX(${finalRotation}deg)`;
             currentRotation = finalRotation;
 
+            // --- CORRECCIÓN AQUÍ ---
             setTimeout(() => {
-                lastResult = isCara ? 'cara' : 'cruz'; // Guardamos la cara ganadora
-                updateResultText(); // Generamos el texto
-                resultText.classList.add('show-result'); // Mostramos el texto
-                isFlipping = false;
+                // PRIMERO apagamos el estado de giro
+                isFlipping = false; 
+                currentResult = resultado;
                 
-            }, 3000); 
+                // DESPUÉS calculamos y mostramos el texto
+                actualizarTexto(resultado);
+                resultText.classList.add('show-result');
+            }, 3000); // 3 segundos de la animación
         }
+
+        function actualizarTexto(resultado) {
+            // Si la base de datos está vacía o la moneda está girando, no mostramos nada
+            if (!resultado || isFlipping) return;
+
+            let ganador = '';
+            let perdedor = '';
+
+            // Usamos las selecciones actuales de los menús
+            if (manuSelect.value === resultado) {
+                ganador = 'Manu';
+                perdedor = 'Ale';
+            } else {
+                ganador = 'Ale';
+                perdedor = 'Manu';
+            }
+
+            resultText.innerHTML = `<strong>${ganador}</strong> ganaste, pide lo que quieras a <strong>${perdedor}</strong>`;
+        }
+    </script>
+</body>
+</html>
     </script>
 </body>
 </html>
